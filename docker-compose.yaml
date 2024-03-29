@@ -1,0 +1,27 @@
+version: '3.8'
+services:
+  pretix:
+    image: docker.io/pretix/standalone:stable
+    ports:
+      - 80:80
+    volumes:
+      - pretix-data:/data
+      - pretix-conf:/etc/pretix
+      - ./conf/pretix.cfg:/etc/pretix/pretix.cfg:ro
+
+  db:
+    image: docker.io/library/postgres:13-alpine
+    environment:
+      POSTGRES_PASSWORD: pretixtest
+      POSTGRES_USER: pretix
+      POSTGRES_DB: pretix
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+  
+  redis:
+    image: docker.io/library/redis:7-alpine
+
+volumes:
+  postgres-data:
+  pretix-data:
+  pretix-conf:
