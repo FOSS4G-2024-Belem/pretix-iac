@@ -20,8 +20,12 @@ services:
   
   redis:
     image: docker.io/library/redis:7-alpine
+    command: ["redis-server", "--save", "60", "1", "--loglevel", "warning"]
+    volumes:
+      - redis-data:/data
 
 volumes:
   postgres-data:
   pretix-data:
   pretix-conf:
+  redis-data:
