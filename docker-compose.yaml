@@ -17,6 +17,16 @@ services:
       POSTGRES_DB: pretix
     volumes:
       - postgres-data:/var/lib/postgresql/data
+
+  mailserver:
+    image: docker.io/library/python:3.10-alpine
+    environment:
+    #   # https://docs.python.org/3.10/using/cmdline.html#envvar-PYTHONWARNINGS
+    #   PYTHONWARNINGS: ignore
+      PYTHONUNBUFFERED: 1
+    ports:
+      - "1025"
+    command: ["python", "-m", "smtpd", "-n", "-c", "DebuggingServer", "-n", "0.0.0.0:1025"]
   
   redis:
     image: docker.io/library/redis:7-alpine
