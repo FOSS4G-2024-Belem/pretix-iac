@@ -1,7 +1,8 @@
 version: '3.8'
 services:
   pretix:
-    image: docker.io/pretix/standalone:stable
+    # image: docker.io/pretix/standalone:stable
+    image: ghcr.io/foss4g-2024-belem/pretix:testing
     ports:
       - 80:80
     volumes:
