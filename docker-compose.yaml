@@ -3,41 +3,69 @@ version: '3.8'
 x-pretix-common:
   &pretix-common
   # image: docker.io/pretix/standalone:stable
-  image: ghcr.io/foss4g-2024-belem/pretix:testing
-  depends_on:
-    - db
-    - redis
-    - mailserver
-  volumes:
-    &pretix-common-volumes
-    - pretix-data:/data
-    - pretix-conf:/etc/pretix
-    - ./conf/pretix.cfg:/etc/pretix/pretix.cfg:ro
+  image: ghcr.io/foss4g-2024-belem/pretix:latest
+  environment: 
+    &pretix-common-environment
+    {}
   deploy:
     &pretix-common-deploy
     restart_policy: 
       condition: on-failure
-    # resources:
-    #   limits:
-    #     cpus: '1'
-    #     memory: 512M
 
-services:
+services:  
+  certbot:
+    image: certbot/certbot:v2.10.0
+    volumes:
+      - certbot-www:/var/www/certbot
+      - certbot-conf:/etc/letsencrypt
+    command: "--version"
+  
   web:
     <<: *pretix-common
     ports:
       - 80:8080
-    # environment:
-    #  - NUM_WORKERS=1
+      - 443:8443
+    environment:
+      <<: *pretix-common-environment
+    #  NUM_WORKERS: 1
+    depends_on:
+      - worker
+    volumes:
+      - pretix-data:/data
+      - pretix-conf:/etc/pretix
+      - certbot-www:/var/www/certbot:ro
+      - certbot-conf:/etc/nginx/ssl/:ro
+      - ./conf/pretix.cfg:/etc/pretix/pretix.cfg:ro
+      # - ./nginx/conf.d:/etc/nginx/conf.d/:ro
+    deploy:
+      <<: *pretix-common-deploy
+      # resources:
+      #   limits:
+      #     cpus: '1'
+      #     memory: 1G
     command: web
 
   worker:
     <<: *pretix-common
-    # environment:
-    #  - CELERY_NUM_WORKERS=2
+    environment:
+      <<: *pretix-common-environment
+    #  CELERY_NUM_WORKERS: 2
+      AUTOMIGRATE: skip
     depends_on:
-      - web
+      - db
+      - redis
+      - mailserver
+    volumes:
+      - pretix-data:/data
+      - pretix-conf:/etc/pretix
+      - ./conf/pretix.cfg:/etc/pretix/pretix.cfg:ro
     command: taskworker
+    deploy:
+      <<: *pretix-common-deploy
+      # resources:
+      #   limits:
+      #     cpus: '1'
+      #     memory: 1G
 
   db:
     image: docker.io/library/postgres:13-alpine
@@ -90,3 +118,5 @@ volumes:
   pretix-data:
   pretix-conf:
   redis-data:
+  certbot-www:
+  certbot-conf:
