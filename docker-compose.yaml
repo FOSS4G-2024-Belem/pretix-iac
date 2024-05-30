@@ -1,14 +1,72 @@
 version: '3.8'
-services:
-  pretix:
-    # image: docker.io/pretix/standalone:stable
-    image: ghcr.io/foss4g-2024-belem/pretix:testing
+
+x-pretix-common:
+  &pretix-common
+  # image: docker.io/pretix/standalone:stable
+  image: ghcr.io/foss4g-2024-belem/pretix:latest
+  environment: 
+    &pretix-common-environment
+    {}
+  deploy:
+    &pretix-common-deploy
+    restart_policy: 
+      condition: on-failure
+
+services:  
+  certbot:
+    image: certbot/certbot:v2.10.0
+    volumes:
+      - certbot-www:/var/www/certbot
+      - certbot-conf:/etc/letsencrypt
+    command: "--version"
+  
+  web:
+    <<: *pretix-common
     ports:
-      - 80:80
+      - 80:8080
+      - 443:8443
+    environment:
+      <<: *pretix-common-environment
+    #  NUM_WORKERS: 1
+    depends_on:
+      - worker
+    volumes:
+      - pretix-data:/data
+      - pretix-conf:/etc/pretix
+      - certbot-www:/var/www/certbot:ro
+      - certbot-conf:/etc/nginx/ssl/:ro
+      - ./conf/pretix.cfg:/etc/pretix/pretix.cfg:ro
+      # - ./nginx/conf.d:/etc/nginx/conf.d/:ro
+    deploy:
+      <<: *pretix-common-deploy
+      # resources:
+      #   limits:
+      #     cpus: '1'
+      #     memory: 1G
+    command: web
+
+  worker:
+    <<: *pretix-common
+    environment:
+      <<: *pretix-common-environment
+    #  CELERY_NUM_WORKERS: 2
+      AUTOMIGRATE: skip
+    depends_on:
+      - db
+      - redis
+      - mailserver
+      - memcached
     volumes:
       - pretix-data:/data
       - pretix-conf:/etc/pretix
       - ./conf/pretix.cfg:/etc/pretix/pretix.cfg:ro
+    command: taskworker
+    deploy:
+      <<: *pretix-common-deploy
+      # resources:
+      #   limits:
+      #     cpus: '1'
+      #     memory: 1G
 
   db:
     image: docker.io/library/postgres:13-alpine
@@ -18,25 +76,59 @@ services:
       POSTGRES_DB: pretix
     volumes:
       - postgres-data:/var/lib/postgresql/data
+    deploy:
+      restart_policy: 
+        condition: on-failure
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 128M
 
   mailserver:
     image: docker.io/library/python:3.10-alpine
     environment:
-    #   # https://docs.python.org/3.10/using/cmdline.html#envvar-PYTHONWARNINGS
-    #   PYTHONWARNINGS: ignore
+      # https://docs.python.org/3.10/using/cmdline.html#envvar-PYTHONWARNINGS
+      # PYTHONWARNINGS: ignore
       PYTHONUNBUFFERED: 1
     ports:
       - "1025"
     command: ["python", "-m", "smtpd", "-n", "-c", "DebuggingServer", "-n", "0.0.0.0:1025"]
+    deploy:
+      restart_policy: 
+        condition: on-failure
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 64M
   
   redis:
     image: docker.io/library/redis:7-alpine
     command: ["redis-server", "--save", "60", "1", "--loglevel", "warning"]
     volumes:
       - redis-data:/data
+    deploy:
+      restart_policy: 
+        condition: on-failure
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 32M
+  
+  memcached:
+    image: memcached:alpine
+    command: memcached
+    deploy:
+      restart_policy: 
+        condition: on-failure
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 64M
 
 volumes:
   postgres-data:
   pretix-data:
   pretix-conf:
   redis-data:
+  certbot-www:
+  certbot-conf:
