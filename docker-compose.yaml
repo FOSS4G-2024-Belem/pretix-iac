@@ -55,6 +55,7 @@ services:
       - db
       - redis
       - mailserver
+      - memcached
     volumes:
       - pretix-data:/data
       - pretix-conf:/etc/pretix
@@ -112,6 +113,17 @@ services:
         limits:
           cpus: '0.2'
           memory: 32M
+  
+  memcached:
+    image: memcached:alpine
+    command: memcached
+    deploy:
+      restart_policy: 
+        condition: on-failure
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 64M
 
 volumes:
   postgres-data:
